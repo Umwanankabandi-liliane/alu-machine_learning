@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
-""" Return list of ships"""
-
+"""Creating a method that returns the list of ships
+that can hold a given number of passengers"""
 
 import requests
 
 
 def availableShips(passengerCount):
-    """ Return list of ships
+    """Returns a list of ships"""
+    main_url = "https://swapi-api.alx-tools.com/api/starships/?page=1"
 
-    Args:
-        passengerCount (int): number of ships
-    """
-
-    res = requests.get('https://swapi-api.alx-tools.com/api/starships')
+    res = requests.get(main_url)
 
     output = []
     while res.status_code == 200:
