@@ -1,64 +1,73 @@
 #!/usr/bin/env python3
 """
-    script that displays the upcoming launch
+Script that displays information about the next upcoming SpaceX launch
+using the SpaceX API.
 """
-
-
 import requests
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
+import time
+from datetime import timezone, timedelta
 
 
 def get_upcoming_launch():
     """
-    Displays the upcoming launch
+    Fetches and returns formatted information about the next upcoming SpaceX
+    launch.
+    Returns:
+        str: Formatted string containing launch information
     """
-    url = "https://api.spacexdata.com/v4/launches/upcoming"
-    response = requests.get(url)
-    launches = response.json()
+    api_url = "https://api.spacexdata.com/v4/launches/upcoming"
+    try:
+        # Get upcoming launches
+        response = requests.get(api_url)
+        response.raise_for_status()
+        launches = response.json()
+        if not launches:
+            return "No upcoming launches found"
 
-    # Sort launches by date_unix to find the soonest launch
-    launches.sort(key=lambda x: x["date_unix"])
-    upcoming_launch = launches[0]
+        # Sort launches by date_unix and get the soonest one
+        launches.sort(key=lambda x: x.get('date_unix', float('inf')))
+        next_launch = launches[0]
 
-    launch_name = upcoming_launch["name"]
-    date_unix = upcoming_launch["date_unix"]
-    rocket_id = upcoming_launch["rocket"]
-    launchpad_id = upcoming_launch["launchpad"]
+        # Get rocket information
+        rocket_response = requests.get(
+            "https://api.spacexdata.com/v4/rockets/{}".format(
+                next_launch['rocket']))
+        rocket_response.raise_for_status()
+        rocket_data = rocket_response.json()
 
-    # Convert the date to the desired local time (UTC-4)
-    launch_date_utc = datetime.fromtimestamp(date_unix, tz=timezone.utc)
-    launch_date_local = launch_date_utc.astimezone(timezone(
-        timedelta(hours=-4))
-    )
-    launch_date_str = launch_date_local.strftime('%Y-%m-%dT%H:%M:%S%z')
-    launch_date_str = "{}:{}".format(
-        launch_date_str[:-2], launch_date_str[-2:]
-    )
+        # Get launchpad information
+        launchpad_response = requests.get(
+            "https://api.spacexdata.com/v4/launchpads/{}".format(
+                next_launch['launchpad']))
+        launchpad_response.raise_for_status()
+        launchpad_data = launchpad_response.json()
 
-    # Get rocket name
-    rocket_url = "https://api.spacexdata.com/v4/rockets/{}".format(rocket_id)
-    rocket_response = requests.get(rocket_url)
-    rocket_name = rocket_response.json()["name"]
+        # Convert UTC timestamp to Eastern Time
+        utc_time = datetime.fromtimestamp(
+            next_launch['date_unix'], timezone.utc)
 
-    # Get launchpad details
-    launchpad_url = "https://api.spacexdata.com/v4/launchpads/{}".format(
-        launchpad_id
-    )
-    launchpad_response = requests.get(launchpad_url)
-    launchpad_data = launchpad_response.json()
-    launchpad_name = launchpad_data["name"]
-    launchpad_locality = launchpad_data["locality"]
+        # Using EDT (UTC-4) as per the example
+        edt_offset = timedelta(hours=-4)
+        launch_time = utc_time + edt_offset
 
-    # Format the output
-    formatted_output = "{} ({}) {} - {} ({})".format(
-        launch_name,
-        launch_date_str,
-        rocket_name,
-        launchpad_name,
-        launchpad_locality,
-    )
-    return formatted_output
+        # Format with EDT offset (-04:00)
+        launch_date = launch_time.strftime('%Y-%m-%dT%H:%M:%S-04:00')
+
+        # Format the output string
+        return "{} ({}) {} - {} ({})".format(
+            next_launch['name'],
+            launch_date,
+            rocket_data['name'],
+            launchpad_data['name'],
+            launchpad_data['locality']
+        )
+    except requests.exceptions.RequestException as e:
+        return "Error fetching launch data: {}".format(str(e))
+    except (KeyError, ValueError) as e:
+        return "Error processing launch data: {}".format(str(e))
 
 
-if __name__ == "__main__":
-    print(get_upcoming_launch())
+if __name__ == '__main__':
+    result = get_upcoming_launch()
+    print(result)
